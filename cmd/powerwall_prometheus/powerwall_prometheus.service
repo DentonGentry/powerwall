@@ -9,7 +9,7 @@ Type=simple
 User=prometheus
 Group=prometheus
 ExecReload=/bin/kill -HUP \$MAINPID
-ExecStart=/usr/local/bin/powerwall_prometheus
+ExecStart=/usr/local/bin/powerwall_prometheus --addr=192.168.1.10 --passcode=00A1B
 
 SyslogIdentifier=powerwall
 Restart=always
