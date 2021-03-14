@@ -1,0 +1,16 @@
+ # m h  dom mon dow   command
+ # charge up during the day
+ 1 6 * 1,2,3,11,12 * /usr/local/bin/powerwall --percent=100 --username=login@example.com --password=hunter2 --statedir=/var/run/powerwall
+
+ # Hold charge at partial-peak at 3pm, let solar power the house.
+ 0 15 * 1,2,3,11,12 * /usr/local/bin/powerwall --hold --username=login@example.com --password=hunter2 --statedir=/var/run/powerwall
+
+ # Solar power production is lowest in December and January, only let the
+ # battery discharge to 50% and hope the sun can charge it to 90%+ the
+ # next day.
+ # Production is higher in Nov/Feb, and higher still in Oct/Mar, so
+ # let the battery discharge more and more.
+ # In summer we no longer need to manage the battery much at all.
+ 0 16 * 12,1 * /usr/local/bin/powerwall --percent=50 --username=login@example.com --password=hunter2 --statedir=/var/run/powerwall
+ 0 16 * 11,2 * /usr/local/bin/powerwall --percent=35 --username=login@example.com --password=hunter2 --statedir=/var/run/powerwall
+ 0 16 * 10,3 * /usr/local/bin/powerwall --percent=20 --username=login@example.com --password=hunter2 --statedir=/var/run/powerwall

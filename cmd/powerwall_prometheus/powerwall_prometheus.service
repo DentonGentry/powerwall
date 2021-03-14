@@ -1,0 +1,18 @@
+[Unit]
+Description=Powerwall monitoring
+Documentation=https://github.com/DentonGentry/powerwall
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+ExecReload=/bin/kill -HUP \$MAINPID
+ExecStart=/usr/local/bin/powerwall_prometheus
+
+SyslogIdentifier=powerwall
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
