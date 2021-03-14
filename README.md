@@ -36,10 +36,11 @@ polls so frequently, it queries the local Backup Gateway directly and does not r
 Tesla's cloud service.
 
 
-### cmd/solcast\_uploader
-A utility intended to run from cron at the end of the day, extracting production information
+### cmd/solcast\_uploader (OBSOLETE)
+~~A utility intended to run from cron at the end of the day, extracting production information
 from Prometheus to upload to solcast.com.au. A future goal is to use day-ahead forecasts
-from Solcast to determine how much to allow the Powerwall to discharge.
+from Solcast to determine how much to allow the Powerwall to discharge.~~
+solcast.com.au has [discontinued the PV Tuning feature](https://articles.solcast.com.au/en/articles/4945263-pv-tuning-discontinued).
 
 
 ## How to get started
