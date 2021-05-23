@@ -90,5 +90,5 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	prometheus.MustRegister(forecastPower)
 	go UpdateMetricsLoop(apiKey, resourceId)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port), nil))
+	log.Fatal(http.ListenAndServe("localhost:"+strconv.Itoa(port), nil))
 }
