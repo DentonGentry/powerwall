@@ -131,7 +131,7 @@ func UploadToSolcast(measurements []Measurement, apiKey string, resourceId strin
 		if err != nil {
 			log.Fatalf("Solcast Measurement POST status=%v", resp.StatusCode)
 		} else {
-			log.Fatal(string(body))
+			log.Fatalf("HTTP Status = %d\n%s\n", resp.StatusCode, body)
 		}
 	}
 }
