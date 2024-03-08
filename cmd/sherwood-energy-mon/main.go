@@ -1,85 +1,97 @@
-// Copyright (c) 2020, Denton Gentry <dgentry@decarbon.earth>
-// All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
+// Copyright (c), Denton Gentry <dgentry@decarbon.earth>
+// SPDX-License-Identifier: BSD-3-Clause
 
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/oauth2"
 )
 
 var (
-	solarPower = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_solar_watts",
-		Help: "Instantaneous solar power production in Watts.",
-	})
-	powerwallEnergy = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_powerwall_energy_wh",
-		Help: "Instantaneous energy stored in Powerwall(s) in Watt-hours.",
-	})
-	powerwallCapacity = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_powerwall_capacity_wh",
-		Help: "Energy capacity of Powerwall(s) in Watt-hours.",
-	})
-	powerwallPower = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_powerwall_watts",
-		Help: "Instantaneous powerwall power production in Watts (can be negative).",
-	})
-	houseLoadPower = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_house_load_watts",
-		Help: "Instantaneous power demand from the house in watts.",
-	})
-	gridPower = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_grid_watts",
-		Help: "Instantaneous power drawn from the grid in watts (can be negative).",
-	})
-	gridPresent = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_grid_present",
-		Help: "Whether power grid is powered (1) or not (0).",
-	})
-	stormModeActive = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_grid_active",
-		Help: "Whether storm mode is active (1) or not (0).",
-	})
-	onGrid = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "sherwood_energymon_on_grid",
-		Help: "Whether Powerwall is on grid (1) or not (0).",
-	})
+	teslaOauthConfig = &oauth2.Config{
+		RedirectURL:  "https://sherwood-energy-mon.decarbon.earth/redirect_url",
+		ClientID:     os.Getenv("TESLA_OAUTH_CLIENT_ID"),
+		ClientSecret: os.Getenv("TESLA_OAUTH_CLIENT_SECRET"),
+		Scopes:       []string{"openid", "offline_access", "energy_device_data", "energy_cmds"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   "https://auth.tesla.com/oauth2/v3/authorize",
+			TokenURL:  "https://auth.tesla.com/oauth2/v3/token",
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+	}
 )
 
-func UpdateMetricsLoop() {
-	t := time.NewTicker(10 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-		}
+func handleTeslaAuthCallback(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("Callback handler, state=%v\n", r.FormValue("state"))
+	tokens, err := teslaOauthConfig.Exchange(oauth2.NoContext, r.FormValue("code"))
+	if err != nil {
+		fmt.Println(err)
+		fmt.Fprintf(w, "%v", err)
+		return
 	}
+
+	fmt.Printf("Callback handler, marshalling tokens\n")
+	b, err := json.Marshal(tokens)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Fprintf(w, "%v", err)
+		return
+	}
+
+	fmt.Printf("Callback handler, tokens=%q\n", string(b))
+	f, err := os.OpenFile("/tmp/tesla-tokens.json", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Fprintf(w, "%v", err)
+		return
+	}
+	defer f.Close()
+
+	fmt.Printf("Callback handler, writing file\n")
+	f.Write(b)
 }
 
-func ServePrometheusMetrics() {
-	http.Handle("/metrics", promhttp.Handler())
-	prometheus.MustRegister(solarPower)
-	prometheus.MustRegister(powerwallEnergy)
-	prometheus.MustRegister(powerwallCapacity)
-	prometheus.MustRegister(powerwallPower)
-	prometheus.MustRegister(houseLoadPower)
-	prometheus.MustRegister(gridPower)
-	prometheus.MustRegister(gridPresent)
-	prometheus.MustRegister(stormModeActive)
-	prometheus.MustRegister(onGrid)
-
-	go UpdateMetricsLoop()
-	log.Fatal(http.ListenAndServe("localhost:8080", nil))
+func handleTeslaAuthLogin(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("Login handler\n")
+	oauthStateString := generateStateOauthCookie(w)
+	fmt.Printf("Login handler, state=%s\n", oauthStateString)
+	u := teslaOauthConfig.AuthCodeURL(oauthStateString)
+	fmt.Printf("Login handler, redirecting url=%q\n", u)
+	http.Redirect(w, r, u, http.StatusTemporaryRedirect)
 }
 
+func randomString(len int) string {
+	b := make([]byte, len)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+func generateStateOauthCookie(w http.ResponseWriter) string {
+	expiration := time.Now().Add(365 * 24 * time.Hour)
+	state := randomString(24)
+	cookie := http.Cookie{Name: "oauthstate", Value: state, Expires: expiration}
+	http.SetCookie(w, &cookie)
+
+	return state
+}
 func main() {
-	ServePrometheusMetrics()
+	fmt.Println("Starting...")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "ok")
+		fmt.Println("Root Handler")
+	})
+	http.HandleFunc("/login", handleTeslaAuthLogin)
+	http.HandleFunc("/redirect_url", handleTeslaAuthCallback)
+
+	fmt.Println("Listening...")
+	log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
 }

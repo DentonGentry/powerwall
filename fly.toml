@@ -6,6 +6,10 @@
 app = 'sherwood-energy-mon'
 primary_region = 'sjc'
 
+[build]
+  [build.args]
+      GO_VERSION = '1.21.5'
+
 [http_service]
   internal_port = 8080
   force_https = true
@@ -15,6 +19,6 @@ primary_region = 'sjc'
   processes = ['app']
 
 [[vm]]
-  memory = '1gb'
+  memory_mb = 512
   cpu_kind = 'shared'
   cpus = 1
